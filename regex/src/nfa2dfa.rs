@@ -3,15 +3,16 @@ use crate::nfa::NFA;
 use std::collections::HashMap;
 
 pub fn determinize(nfa: &NFA) -> DFA {
-    let start = nfa.start;
+    let mut start = nfa.get_reach(nfa.start, None);
+    start.push(nfa.start);
     let mut table = Vec::new();
-    let mut states = Vec::new();
+    let mut states = vec![start.clone()];
     let accepts: Vec<_> = nfa
         .get_accepts()
         .into_iter()
         .filter(|x| matches!(x, Some(_)))
+        .map(|x| x.unwrap())
         .collect();
-    states.push(vec![start]);
     while !states.is_empty() {
         let state = states.pop().unwrap();
         let new_states: Vec<_> = accepts
@@ -19,7 +20,7 @@ pub fn determinize(nfa: &NFA) -> DFA {
             .map(|a| {
                 let mut new_state: Vec<_> = state
                     .iter()
-                    .map(|s| nfa.get_reach(*s, *a))
+                    .map(|s| nfa.get_reach(*s, Some(*a)))
                     .flatten()
                     .collect();
                 new_state.sort_unstable();
@@ -27,6 +28,7 @@ pub fn determinize(nfa: &NFA) -> DFA {
                 new_state
             })
             .collect();
+        //println!("{:?} => {:?}", state, new_states);
         table.push((state, new_states.clone()));
         for new_state in new_states {
             if !new_state.is_empty()
@@ -43,6 +45,7 @@ pub fn determinize(nfa: &NFA) -> DFA {
         .enumerate()
         .map(|(i, s)| (s.0.clone(), i))
         .collect();
+    //println!("{:?}", rename);
     DFA {
         accepts,
         table: table
@@ -53,7 +56,7 @@ pub fn determinize(nfa: &NFA) -> DFA {
                     .collect::<Vec<_>>()
             })
             .collect(),
-        start: *rename.get(&vec![start]).unwrap(),
+        start: *rename.get(&start).unwrap(),
         out: rename
             .iter()
             .filter(|(s, _)| s.contains(&nfa.out))

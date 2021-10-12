@@ -43,6 +43,10 @@ pub fn post2nfa(p: &[RegexToken]) -> NFA {
     }
     let (a_start, a_out) = stack.pop().unwrap();
     nfa.start = a_start;
+    if nfa.nodes[a_start].accept != None {
+        nfa.start = nfa.add_node(NFANode::new(None));
+        nfa.add_edge(nfa.start, a_start);
+    }
     nfa.out = a_out;
     nfa
 }

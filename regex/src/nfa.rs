@@ -1,3 +1,5 @@
+use crate::post2nfa::post2nfa;
+use crate::regex2post::regex2post;
 use std::fmt::{Display, Formatter, Result};
 
 #[derive(Debug)]
@@ -16,6 +18,10 @@ impl NFA {
             start: 0,
             out: 0,
         }
+    }
+
+    pub fn from_regex(r: &str) -> NFA {
+        post2nfa(&regex2post(r))
     }
 
     pub fn add_node(&mut self, node: NFANode) -> usize {
@@ -49,7 +55,7 @@ impl NFA {
         let mut stack = vec![(s, false)];
         while !stack.is_empty() {
             let (cur, used) = stack.pop().unwrap();
-            if cur != s && used {
+            if used {
                 reached.push(cur);
             }
             if !used {
@@ -73,9 +79,9 @@ impl Display for NFA {
         let idx_max = self.nodes.len() - 1;
         let start = self.start;
         let out = self.out;
-        writeln!(
+        write!(
             f,
-            "NFA | {}",
+            "NFA  | {}",
             accepts
                 .iter()
                 .map(|x| match x {
@@ -86,15 +92,17 @@ impl Display for NFA {
                 .join(" | ")
         )?;
         for i in 0..=idx_max {
-            writeln!(
+            write!(
                 f,
-                "{}{} | {}",
-                if i == start {
-                    "->"
+                "\n{}{} | {}",
+                if i == start && i == out {
+                    "->*"
+                } else if i == start {
+                    "-> "
                 } else if i == out {
-                    " *"
+                    "  *"
                 } else {
-                    "  "
+                    "   "
                 },
                 i,
                 accepts
