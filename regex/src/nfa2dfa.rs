@@ -3,8 +3,7 @@ use crate::nfa::NFA;
 use std::collections::HashMap;
 
 pub fn determinize(nfa: &NFA) -> DFA {
-    let mut start = nfa.get_reach(nfa.start, None);
-    start.push(nfa.start);
+    let start = nfa.get_reach(nfa.start, None);
     let mut table = Vec::new();
     let mut states = vec![start.clone()];
     let accepts: Vec<_> = nfa
@@ -49,7 +48,7 @@ pub fn determinize(nfa: &NFA) -> DFA {
     DFA {
         accepts,
         table: table
-            .iter()
+            .into_iter()
             .map(|(_, ns)| {
                 ns.iter()
                     .map(|n| rename.get(n).copied())
@@ -58,9 +57,9 @@ pub fn determinize(nfa: &NFA) -> DFA {
             .collect(),
         start: *rename.get(&start).unwrap(),
         out: rename
-            .iter()
+            .into_iter()
             .filter(|(s, _)| s.contains(&nfa.out))
-            .map(|(_, i)| *i)
+            .map(|(_, i)| i)
             .collect(),
     }
 }

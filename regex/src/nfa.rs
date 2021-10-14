@@ -52,7 +52,7 @@ impl NFA {
 
     pub fn get_reach(&self, s: usize, a: Option<char>) -> Vec<usize> {
         let mut reached = Vec::new();
-        let mut stack = vec![(s, false)];
+        let mut stack = vec![(s, a == None)];
         while !stack.is_empty() {
             let (cur, used) = stack.pop().unwrap();
             if used {

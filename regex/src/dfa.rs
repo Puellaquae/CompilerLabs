@@ -50,12 +50,7 @@ impl DFA {
 
     pub fn get_trans(&self, s: usize, c: Option<char>) -> TransRes {
         if let Some(ch) = c {
-            let oi = self
-                .accepts
-                .iter()
-                .enumerate()
-                .filter(|(_, x)| **x == ch)
-                .next();
+            let oi = self.accepts.iter().enumerate().find(|(_, x)| **x == ch);
             if let Some((i, _)) = oi {
                 if let Some(r) = self.table[s][i] {
                     TransRes::Next(r)
@@ -105,7 +100,7 @@ impl DFA {
         states
             .into_iter()
             .map(|mut s| {
-                s.sort();
+                s.sort_unstable();
                 s.dedup();
                 s
             })
@@ -139,7 +134,7 @@ impl DFA {
             start: *rename.get(&self.start).unwrap(),
             out: {
                 let mut o: Vec<_> = self.out.iter().map(|x| *rename.get(x).unwrap()).collect();
-                o.sort();
+                o.sort_unstable();
                 o.dedup();
                 o
             },
