@@ -1,18 +1,33 @@
 mod cfg;
-use cfg::remove_direct_left_recursion;
+use cfg::CFG;
 
 fn main() {
     let p = productions!(
-        V1 => V1, 2, V2;
-        V1 => 3;
-        V2 => 4, V1;
+        E => T, A;
+        A => '+', T, A;
+        A => ;
+        T => F, B;
+        B => '*', F, B;
+        B => ;
+        F => '(', E, ')';
+        F => 'd';
     );
+    
     for r in p.iter() {
         println!("{}", r);
     }
-    println!("============");
-    let np = remove_direct_left_recursion(&p);
-    for r in np.iter() {
-        println!("{}", r);
-    }
+    
+    let c = CFG {
+        rules: p,
+        start: "E".into(),
+    };
+    
+    println!("====FIRST====");
+    println!("{:?}", c.get_firsts());
+
+    println!("====FOLLOW====");
+    println!("{:?}", c.get_follows());
+
+    println!("====TABLE====");
+    println!("{:?}", c.get_table());
 }
