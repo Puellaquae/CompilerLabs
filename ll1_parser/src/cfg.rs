@@ -3,79 +3,86 @@ use std::fmt::{Display, Formatter, Result};
 use std::hash::Hash;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum Symbol<T: PartialEq + Eq + Clone> {
+pub enum Symbol {
     Variable(String),
-    Terminal(T),
+    Terminal(String),
     Epsilon,
 }
 
 #[derive(Debug, Clone)]
-pub struct Production<T: PartialEq + Eq + Clone> {
+pub struct Production {
     pub left: String,
-    pub right: Vec<Symbol<T>>,
+    pub right: Vec<Symbol>,
 }
 
 #[derive(Debug)]
-pub struct CFG<T: PartialEq + Eq + Clone> {
-    pub rules: Vec<Production<T>>,
+pub struct CFG {
+    pub terminals: Vec<String>,
+    pub rules: Vec<Production>,
     pub start: String,
 }
 
+#[derive(Debug)]
+pub struct Sets(HashMap<String, HashSet<Symbol>>);
+
+#[derive(Debug)]
+pub struct Table<'a>(HashMap<(String, Symbol), &'a Production>);
+
 #[macro_export]
 macro_rules! to_symbol {
-    ($e:ident) => {
-        crate::cfg::Symbol::Variable(String::from(stringify!($e)))
-    };
-
-    ($e:expr) => {
-        crate::cfg::Symbol::Terminal($e)
+    (@ $terms:ident $e:tt) => {
+        {
+            let s = String::from(stringify!($e));
+            if $terms.contains(&s) {
+                crate::cfg::Symbol::Terminal(s)
+            } else {
+                crate::cfg::Symbol::Variable(s)
+            }
+        }
     };
 }
 
 #[macro_export]
 macro_rules! productions {
-    (@  $vec:ident) => {
+    (@ $terms:ident $vec:ident) => {
 
     };
 
-    (@ $vec:ident $v:ident => ; $($t:tt)*) => {
+    (@ $terms:ident $vec:ident $v:ident => ; $($t:tt)*) => {
         $vec.push(crate::cfg::Production{left: String::from(stringify!($v)), right: vec![crate::cfg::Symbol::Epsilon]});
-        productions!(@ $vec $($t)*);
+        productions!(@ $terms $vec $($t)*);
     };
 
-    (@ $vec:ident $v:ident => $e:ident ; $($t:tt)*) => {
-        $vec.push(crate::cfg::Production{left: String::from(stringify!($v)), right: vec![to_symbol!($e)]});
-        productions!(@ $vec $($t)*);
+    (@ $terms:ident $vec:ident $v:ident => $($rs:ident)* ; $($t:tt)*) => {
+        $vec.push(crate::cfg::Production{left: String::from(stringify!($v)), right: vec![$(to_symbol!(@ $terms $rs)),*]});
+        productions!(@ $terms $vec $($t)*);
     };
 
-    (@ $vec:ident $v:ident => $e:expr ; $($t:tt)*) => {
-        $vec.push(crate::cfg::Production{left: String::from(stringify!($v)), right: vec![to_symbol!($e)]});
-        productions!(@ $vec $($t)*);
-    };
-
-    (@ $vec:ident $v:ident => $e:ident, $($rs:tt),* ; $($t:tt)*) => {
-        $vec.push(crate::cfg::Production{left: String::from(stringify!($v)), right: vec![to_symbol!($e), $(to_symbol!($rs)),*]});
-        productions!(@ $vec $($t)*);
-    };
-
-    (@ $vec:ident $v:ident => $e:expr, $($rs:tt),* ; $($t:tt)*) => {
-        $vec.push(crate::cfg::Production{left: String::from(stringify!($v)), right: vec![to_symbol!($e), $(to_symbol!($rs)),*]});
-        productions!(@ $vec $($t)*);
-    };
-
-    ($($t:tt)*) => {
+    (@ $terms:ident $($t:tt)*) => {
         {
             let mut vec = Vec::new();
-            productions!(@ vec $($t)*);
+            productions!(@ $terms vec $($t)*);
             vec
         }
     };
 }
 
-pub fn remove_direct_left_recursion<T>(rules: &[Production<T>]) -> Vec<Production<T>>
-where
-    T: PartialEq + Clone + Eq,
-{
+#[macro_export]
+macro_rules! context_free_grammar {
+    (terminals: [$($t:ident),*] rules: {$($r:tt)*} start: $s:ident) => {
+        {
+            let terms = vec![$(stringify!($t).to_string()),*];
+            let p = productions!(@ terms $($r)*);
+            crate::cfg::CFG {
+                terminals: terms,
+                rules: p,
+                start: stringify!($s).into()
+            }
+        }
+    };
+}
+
+pub fn remove_direct_left_recursion(rules: &[Production]) -> Vec<Production> {
     let mut new_rules = Vec::new();
     let mut new_vars = Vec::new();
     let need_new_var = rules
@@ -87,7 +94,7 @@ where
         let var = Symbol::Variable(rule.left.clone());
         let new_var = rule.left.clone() + "$";
         if rule.right.starts_with(&[var]) {
-            let mut nr: Vec<Symbol<T>> = (&rule.right[1..]).to_vec();
+            let mut nr: Vec<Symbol> = (&rule.right[1..]).to_vec();
             nr.push(Symbol::Variable(new_var.clone()));
             new_rules.push(Production {
                 left: new_var.clone(),
@@ -95,7 +102,7 @@ where
             });
             new_vars.push(new_var)
         } else {
-            let mut nr: Vec<Symbol<T>> = rule.right.to_vec();
+            let mut nr: Vec<Symbol> = rule.right.to_vec();
             if need_new_var.contains(&rule.left) {
                 nr.push(Symbol::Variable(new_var));
             }
@@ -114,11 +121,8 @@ where
     new_rules
 }
 
-impl<T> CFG<T>
-where
-    T: PartialEq + Clone + Eq + Hash,
-{
-    fn get_first(&self, x: &Symbol<T>) -> HashSet<Symbol<T>> {
+impl CFG {
+    fn get_first(&self, x: &Symbol) -> HashSet<Symbol> {
         let mut first = HashSet::new();
         if let Symbol::Terminal(_) = x {
             first.insert(x.clone());
@@ -162,18 +166,20 @@ where
         first
     }
 
-    pub fn get_firsts(&self) -> HashMap<String, HashSet<Symbol<T>>> {
+    pub fn get_firsts(&self) -> Sets {
         let t = self
             .rules
             .iter()
             .map(|r| r.left.clone())
             .collect::<HashSet<String>>();
-        t.into_iter()
-            .map(|s| (s.clone(), self.get_first(&Symbol::Variable(s))))
-            .collect()
+        Sets(
+            t.into_iter()
+                .map(|s| (s.clone(), self.get_first(&Symbol::Variable(s))))
+                .collect(),
+        )
     }
 
-    fn get_string_first(&self, str: &[Symbol<T>]) -> HashSet<Symbol<T>> {
+    fn get_string_first(&self, str: &[Symbol]) -> HashSet<Symbol> {
         let mut first = HashSet::new();
         let mut all_espilon = true;
         for s in str {
@@ -197,7 +203,7 @@ where
         first
     }
 
-    pub fn get_follows(&self) -> HashMap<String, HashSet<Symbol<T>>> {
+    pub fn get_follows(&self) -> Sets {
         let mut follows = HashMap::new();
         follows.insert(self.start.clone(), {
             let mut set = HashSet::new();
@@ -233,10 +239,10 @@ where
                 break;
             }
         }
-        follows
+        Sets(follows)
     }
 
-    pub fn get_table(&self) -> HashMap<(String, Symbol<T>), &Production<T>> {
+    pub fn get_table(&self) -> Table {
         let mut table = HashMap::new();
         let follows = self.get_follows();
         for p in self.rules.iter() {
@@ -247,7 +253,7 @@ where
                 }
             }
             if first.contains(&Symbol::Epsilon) {
-                if let Some(follow_a) = follows.get(&p.left) {
+                if let Some(follow_a) = follows.0.get(&p.left) {
                     for s in follow_a {
                         match s {
                             Symbol::Terminal(_) | Symbol::Epsilon => {
@@ -259,14 +265,11 @@ where
                 }
             }
         }
-        table
+        Table(table)
     }
 }
 
-impl<T> Display for Production<T>
-where
-    T: PartialEq + Clone + Display + Eq,
-{
+impl Display for Production {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         let right = self
             .right
@@ -279,5 +282,45 @@ where
             .collect::<Vec<_>>()
             .join(" ");
         write!(f, "{} => {}", self.left, right)
+    }
+}
+
+impl Display for Sets {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        for (key, val) in self.0.iter() {
+            writeln!(
+                f,
+                "{}: {{ {} }}",
+                key,
+                val.iter()
+                    .map(|x| match x {
+                        Symbol::Terminal(t) => t.to_string(),
+                        Symbol::Variable(v) => v.clone(),
+                        Symbol::Epsilon => "#".into(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )?;
+        }
+        Ok(())
+    }
+}
+
+impl Display for Table<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        for ((term, var), prod) in self.0.iter() {
+            writeln!(
+                f,
+                "( {}, {} ): {}",
+                term,
+                match var {
+                    Symbol::Terminal(t) => t.to_string(),
+                    Symbol::Variable(v) => v.clone(),
+                    Symbol::Epsilon => "#".into(),
+                },
+                prod
+            )?;
+        }
+        Ok(())
     }
 }

@@ -1,33 +1,33 @@
 mod cfg;
-use cfg::CFG;
 
 fn main() {
-    let p = productions!(
-        E => T, A;
-        A => '+', T, A;
-        A => ;
-        T => F, B;
-        B => '*', F, B;
-        B => ;
-        F => '(', E, ')';
-        F => 'd';
+    let c = context_free_grammar!(
+        terminals: [Add, Mul, Num, Lb, Rb]
+        rules: {
+            E => T A;
+            A => Add T A;
+            A => ;
+            T => F B;
+            B => Mul F B;
+            B => ;
+            F => Lb E Rb;
+            F => Num;
+        }
+        start: E
     );
+
+    println!("Terminals: {:?}", c.terminals);
     
-    for r in p.iter() {
+    for r in c.rules.iter() {
         println!("{}", r);
     }
-    
-    let c = CFG {
-        rules: p,
-        start: "E".into(),
-    };
-    
+    println!("");
     println!("====FIRST====");
-    println!("{:?}", c.get_firsts());
+    println!("{}", c.get_firsts());
 
     println!("====FOLLOW====");
-    println!("{:?}", c.get_follows());
+    println!("{}", c.get_follows());
 
     println!("====TABLE====");
-    println!("{:?}", c.get_table());
+    println!("{}", c.get_table());
 }
