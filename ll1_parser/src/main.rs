@@ -1,33 +1,53 @@
 mod cfg;
 
+#[derive(Debug)]
+enum Token {
+    Add,
+    Mul,
+    LeftBracket,
+    RightBracket,
+    Num(i32)
+}
+
 fn main() {
+    use Token::{Add, Mul, LeftBracket, RightBracket, Num};
+
     let c = context_free_grammar!(
-        terminals: [Add, Mul, Num, Lb, Rb]
+        terminals: {
+            a = Add,
+            m = Mul,
+            l = LeftBracket,
+            r = RightBracket,
+            d = Num(0)
+        }
         rules: {
             E => T A;
-            A => Add T A;
-            A => ;
+            A => a T A | ;
             T => F B;
-            B => Mul F B;
-            B => ;
-            F => Lb E Rb;
-            F => Num;
+            B => m F B | ;
+            F => l E r | d;
         }
         start: E
     );
 
     println!("Terminals: {:?}", c.terminals);
+    println!("Entry: {}", c.start);
     
+    println!();
+    println!("=====GRAMMAR====");
     for r in c.rules.iter() {
         println!("{}", r);
     }
-    println!("");
-    println!("====FIRST====");
+    println!();
+    println!("=====FIRST======");
     println!("{}", c.get_firsts());
 
-    println!("====FOLLOW====");
+    println!("=====FOLLOW=====");
     println!("{}", c.get_follows());
 
-    println!("====TABLE====");
+    println!("=====TABLE======");
     println!("{}", c.get_table());
+
+    println!("=====PARSE======");
+    println!("{:#?}", c.parse(&[LeftBracket, Num(1), Add, Num(2), RightBracket, Mul, Num(3)]));
 }
