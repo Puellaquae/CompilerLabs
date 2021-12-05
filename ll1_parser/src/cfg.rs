@@ -19,6 +19,7 @@ pub struct Production {
     pub right: Vec<Symbol>,
 }
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug)]
 pub struct CFG<T> {
     pub discriminant2terminal: HashMap<Discriminant<T>, String>,
@@ -120,8 +121,7 @@ macro_rules! context_free_grammar {
             let dis2term = build_terms!(@begin $($t)*);
             let terms = dis2term.values().map(|x| x.clone()).collect::<Vec<String>>();
             let start = stringify!($s);
-            let p = crate::cfg::normalize_rules(start, productions!(@ terms $($r)*));
-            //let p = productions!(@ terms $($r)*);
+            let p = productions!(@ terms $($r)*);
             crate::cfg::CFG {
                 discriminant2terminal: dis2term,
                 terminals: terms,
@@ -132,7 +132,7 @@ macro_rules! context_free_grammar {
     };
 }
 
-pub fn normalize_rules(start: &str, rules: Vec<Production>) -> Vec<Production> {
+fn normalize_rules(start: &str, rules: Vec<Production>) -> Vec<Production> {
     let mut rules_group = HashMap::new();
     for rule in rules {
         let v = rules_group.entry(rule.left).or_insert_with(Vec::new);
@@ -147,8 +147,6 @@ fn remove_left_recursion(
     let mut rules_group = rules;
     let mut normalized: HashMap<String, Vec<Vec<Symbol>>> = HashMap::new();
     for (a, a_prods) in rules_group.iter_mut() {
-        // println!("Current: {} => {:?}", a, a_prods);
-        // println!("Normalized: {:?}", normalized);
         for (b, b_prods) in normalized.iter() {
             *a_prods = apply_rules(a_prods, b, b_prods);
         }
@@ -202,10 +200,8 @@ fn remove_direct_left_recursion(
         for rule in new_rules.iter_mut() {
             rule.push(Symbol::Variable(new_var.clone()));
         }
-        out.insert(var.to_string(), new_rules);
-    } else {
-        out.insert(var.to_string(), new_rules);
     }
+    out.insert(var.to_string(), new_rules);
 }
 
 fn clear_unreached(start: &str, rules: HashMap<String, Vec<Vec<Symbol>>>) -> Vec<Production> {
@@ -237,6 +233,10 @@ fn clear_unreached(start: &str, rules: HashMap<String, Vec<Vec<Symbol>>>) -> Vec
 }
 
 impl<T> CFG<T> {
+    pub fn left_recursion_eliminate_unstable(&mut self) {
+        self.rules = normalize_rules(&self.start, std::mem::take(&mut self.rules));
+    }
+
     fn get_first(&self, x: &Symbol) -> HashSet<Symbol> {
         let mut first = HashSet::new();
         if let Symbol::Terminal(_) | Symbol::Epsilon = x {
@@ -359,7 +359,7 @@ impl<T> CFG<T> {
             let first = self.get_string_first(&p.right);
             for s in first.iter() {
                 if let Symbol::Terminal(_) = s {
-                    if let Some(_) = table.insert((p.left.clone(), s.clone()), p) {
+                    if table.insert((p.left.clone(), s.clone()), p).is_some() {
                         panic!("Not LL(1) Grammar");
                     }
                 }
@@ -369,7 +369,7 @@ impl<T> CFG<T> {
                     for s in follow_a {
                         match s {
                             Symbol::Terminal(_) | Symbol::Epsilon => {
-                                if let Some(_) = table.insert((p.left.clone(), s.clone()), p) {
+                                if table.insert((p.left.clone(), s.clone()), p).is_some() {
                                     panic!("Not LL(1) Grammar");
                                 }
                             }
@@ -435,13 +435,13 @@ impl<T> CFG<T> {
         }
 
         let table = self.get_table().0;
-        let mut stack = Vec::new();
-        stack.push(Symbol::Variable(self.start.clone()));
+        let mut stack = vec![Symbol::Variable(self.start.clone())];
         let mut iter = tokens.iter().peekable();
         let mut out: Vec<TempNode<'a, T>> = Vec::new();
         while !stack.is_empty() {
             let x = stack.pop().unwrap();
             let a = match iter.peek() {
+                #[allow(clippy::mem_discriminant_non_enum)]
                 Some(v) => Symbol::Terminal(
                     self.discriminant2terminal
                         .get(&discriminant(v))

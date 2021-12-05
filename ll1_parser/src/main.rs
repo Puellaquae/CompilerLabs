@@ -12,7 +12,7 @@ enum Token {
 fn main() {
     use Token::{Add, Mul, LeftBracket, RightBracket, Num};
 
-    let c = context_free_grammar!(
+    let mut c = context_free_grammar!(
         terminals: {
             a = Add,
             m = Mul,
@@ -39,6 +39,14 @@ fn main() {
         println!("{}", r);
     }
     println!();
+
+    c.left_recursion_eliminate_unstable();
+    println!("=====GRAMMAR====");
+    for r in c.rules.iter() {
+        println!("{}", r);
+    }
+    println!();
+    
     println!("=====FIRST======");
     println!("{}", c.get_firsts());
 

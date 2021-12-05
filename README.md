@@ -14,9 +14,7 @@
 
 文件：[regex](./regex)
 
-## Personal Lab 1
-
-**未完成**
+## Lab 3
 
 LL(1) 语法分析，左递归消除，计算 FIRST 和 FOLLOW 集，生成预测分析表
 
